@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="css/pico.blue.min.css">
+    <title>CGo + Python Tools</title>
+    <style>
+        .text-center{
+            text-align: center;
+        }
+        .struct-bar{
+            display: grid;
+            grid-template-columns: 5fr 1fr;
+            grid-template-rows: 1fr;
+            grid-column-gap: 0px;
+            grid-row-gap: 0px;
+        }
+    </style>
+  </head>
+  <body>
+    <header class="container">
+        <nav>
+            <ul>
+                <li><a href="https://github.com/Descent098/cgo-python-helpers" class="contrast">library</a></li>
+                <li><a href="https://github.com/Descent098/cgo-python-helpers/tree/gh-pages" class="contrast">Site Source</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main class="container">
+        <article class="text-center">
+            <h1>CGo + Python Tools</h1>
+            <hr/>
+            <p>This site is designed to help make creating a library that binds between python and go easy.</p>
+            <p>Fill out the form below with a list of the structs that you want, and a package will be built to bring the data back and forth between the environments.</p>
+            <p>If you just want to use basic types (strings, ints, floats, or arrays of any of these) then I would recommend looking at <a href="http://github.com/descen098/cgo-python-helpers" target="_blank" rel="noopener noreferrer">the library</a> I wrote instead</p>
+        </article>
+        <article action="text-center">
+            <h2>Build Structs</h2>
+                <div id="structs">
+                    
+                </div>
+                <button id="add-struct-button">+ Add Struct</button>
+<button id="export-button">Export</button>
+        </article>
+    </main>
+  </body>
+
+  <script src="./js/structs.js" type="module"></script>
+  <script src="./js/main.js" type="module"></script>
+</html>
