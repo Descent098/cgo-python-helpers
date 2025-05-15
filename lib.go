@@ -46,7 +46,7 @@
 //
 //		  return result
 //	 }
-package helpers
+package main
 
 /*
 #include <stdlib.h>
