@@ -42,6 +42,20 @@ The python lib has the following API functions:
 - `free_float_array_result(ptr: _CFloatArrayResult)`: Frees a FloatArrayResult (including the array and the struct itself).
 
 
+### Tests
+
+To run the tests first install pytest:
+
+```bash
+pip install pytest
+```
+
+To run tests install pytest and run:
+
+```bash
+pytest --ignore=__init__.py
+```
+
 ## Go
 
 Below are details for hooking up the go side of your code with the helper
@@ -51,7 +65,9 @@ Below are details for hooking up the go side of your code with the helper
 In your own go code import the package with:
 
 ```go
-import "github.com/Descent098/cgo-python-helpers/helpers"
+import (
+	helpers "github.com/Descent098/cgo-python-helpers/helpers"
+)
 ```
 
 Then run:
@@ -72,7 +88,7 @@ package main
 import "C"
 import (
 	"fmt"
-	"github.com/Descent098/cgo-python-helpers/helpers"
+	helpers "github.com/Descent098/cgo-python-helpers"
 )
 
 func main() {
