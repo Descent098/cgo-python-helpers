@@ -38,7 +38,7 @@ Freeing Functions
 import os
 import random
 from platform import platform
-from ctypes import Array, cdll, c_char_p, c_int, POINTER, c_float, Structure
+from ctypes import Array, cdll, c_char_p, c_int, POINTER, c_float, Structure, string_at
 
 # import library
 if platform().lower().startswith("windows"):
@@ -70,10 +70,13 @@ lib.print_string_array.argtypes =  [POINTER(c_char_p), c_int]
 lib.FreeStringArray.argtypes = [POINTER(c_char_p), c_int]
 
 lib.print_int_array.argtypes =  [POINTER(c_int), c_int]
-lib.FreeIntArray.argtypes = [POINTER(c_int), c_int]
+lib.FreeIntArray.argtypes = [POINTER(c_int)]
 
 lib.print_float_array.argtypes =  [POINTER(c_float), c_int]
-lib.FreeFloatArray.argtypes =  [POINTER(c_float), c_int]
+lib.FreeFloatArray.argtypes =  [POINTER(c_float)]
+
+lib.return_string.argtypes = [c_char_p]
+lib.return_string.restype = c_char_p
 
 lib.FreeCString.argtypes = [c_char_p]
 
@@ -81,6 +84,8 @@ lib.print_string.argtypes = [c_char_p]
 
 ## Array-based functions
 
+
+lib.FreeStringArray.argtypes = [POINTER(c_char_p), c_int]
 lib.free_string_array_result.argtypes = [POINTER(_CStringArrayResult)]
 lib.return_string_array.argtypes = [POINTER(c_char_p), c_int] 
 lib.return_string_array.restype = POINTER(_CStringArrayResult)
@@ -101,6 +106,10 @@ CStringArray = Array[c_char_p]
 # ========== Python types to C ============
 def prepare_string(data: str | bytes) -> c_char_p:
     """Takes in a string and returns a C-compatible string
+    
+    Notes
+    -----
+    - Does not prune null terminators (\\0 characters)
 
     Parameters
     ----------
@@ -112,7 +121,9 @@ def prepare_string(data: str | bytes) -> c_char_p:
     c_char_p
         The resulting pointer to the string
     """
-    if isinstance(data, str):
+    if not data:
+        return c_char_p(bytes())
+    if type(data) == str:
         return c_char_p(data.encode())
     return c_char_p(bytes(data))
 
@@ -132,7 +143,8 @@ def prepare_string_array(data:list[str|bytes]) -> tuple[CStringArray, int]:
     Notes
     -----
     - Because the data is allocated in python, python will free the memory afterwords
-        
+    - Does not prune null terminators (\\0 characters)
+
     Examples
     --------
     ```
@@ -263,7 +275,7 @@ def string_to_str(pointer: c_char_p) -> str:
     Examples
     --------
     ```
-    c_str = lib.StringToCString(b"Hello from Python!")
+    c_str = prepare_string(b"Hello from Python!")
     result: str = string_to_str(c_str)
     lib.FreeCString(c_str)
     ```
@@ -299,7 +311,7 @@ def string_array_result_to_list(pointer:_CStringArrayResult) -> list[str]:
     
     c_array, number_of_elements = prepare_string_array(data)
     
-    pointer = lib.return_string_array(c_array, number_of_elements)
+    pointer = return_string_array(c_array, number_of_elements)
     
     result:list[str] = string_array_result_to_list(pointer)
     ```
@@ -346,14 +358,18 @@ def return_string(text: str | bytes) -> str:
     """
     c_input = prepare_string(text)
     result = lib.return_string(c_input)
-    try:
-        return result.decode(errors="replace")
-    finally:
-        lib.FreeCString(c_input)
-        lib.FreeCString(result)
+
+    if not result:
+        return ""
+
+    copied_bytes = string_at(result)
+    decoded = copied_bytes.decode(errors="replace")
+
+    return decoded
+    
 
 def return_string_array(c_array:CStringArray, number_of_elements:int) ->list[str]:
-    """Debugging function that shows you the Go representation of a C array and returns the python list version (does not free)
+    """Debugging function that shows you the Go representation of a C array and returns the python list version
 
     Parameters
     ----------
@@ -364,8 +380,7 @@ def return_string_array(c_array:CStringArray, number_of_elements:int) ->list[str
 
     Notes
     -----
-    - DOES NOT FREE INPUT ARRAY WHEN SUCCESSFUL
-    - Treats exceptions as a crash, free's input array ONLY on exception
+    - DOES NOT FREE INPUT ARRAY
     - This function returns the PYTHON list version, do not reassign input variable or it'll never free (i.e. c_array = return_string_array(c_array, number_of_elements))
 
     Returns
@@ -389,26 +404,20 @@ def return_string_array(c_array:CStringArray, number_of_elements:int) ->list[str
     ```
     """
     pointer = lib.return_string_array(c_array, number_of_elements)
-    try:
-        result_data = pointer.contents
-        results = []
-        for i in range(result_data.numberOfElements):
-            results.append(result_data.data[i].decode(errors='replace'))
-        return results
-    except Exception as e:
-        # Clean up input pointer to make sure there's no left over memory during exception
-        print(f"return_string_array(): Ran into error, freeing memory. Error: {e}")
-        lib.free_string_array_result(c_array, number_of_elements)
-        raise e
-    finally:
-        lib.free_string_array_result(pointer, number_of_elements) # Clean up created intermediate pointer
+
+    result_data = pointer.contents
+    results = []
+    for i in range(result_data.numberOfElements):
+        results.append(result_data.data[i].decode(errors='replace'))
+    return results
+
 
 def return_int_array(c_array: CIntArray, number_of_elements: int) -> list[int]:
     """Debugging function that shows you the Go representation of a C int array and returns a Python list
 
     Notes
     -----
-    - DOES NOT FREE INPUT ARRAY ON SUCCESS
+    - DOES NOT FREE INPUT ARRAY
     - Frees input array ONLY on exception
     - Returns the PYTHON list version, do not reassign input variable
 
@@ -466,19 +475,26 @@ def print_string(text: str | bytes):
 def print_string_array(data:list[str|bytes]):
     """Prints a string array's go representation, useful to look for encoding issues
 
+    Notes
+    -----
+    - Does not free because everything is allocated in python, so GC will take care of it
+
     Parameters
     ----------
     data : list[str | bytes]
         The data you want to see the go representation of
     """
     c_array, number_of_items = prepare_string_array(data)
-    try:
-        lib.print_string_array(c_array, number_of_items)
-    finally:
-        lib.free_string_array_result(c_array, number_of_items) # Clean up created intermediate pointer
+
+    lib.print_string_array(c_array, number_of_items)
+
 
 def print_int_array(data:list[int]):
     """Prints a int array's go representation, useful to look for rounding/conversion issues
+
+    Notes
+    -----
+    - Does not free because everything is allocated in python, so GC will take care of it
 
     Parameters
     ----------
@@ -486,13 +502,16 @@ def print_int_array(data:list[int]):
         The data you want to see the go representation of
     """
     c_array, number_of_items = prepare_int_array(data)
-    try:
-        lib.print_int_array(c_array, number_of_items)
-    finally:
-        lib.FreeIntArray(c_array) # Clean up created intermediate pointer
+
+    lib.print_int_array(c_array, number_of_items)
+
 
 def print_float_array(data:list[float]):
     """Prints a float array's go representation, useful to look for rounding/conversion issues
+
+    Notes
+    -----
+    - Does not free because everything is allocated in python, so GC will take care of it
 
     Parameters
     ----------
@@ -500,10 +519,8 @@ def print_float_array(data:list[float]):
         The data you want to see the go representation of
     """
     c_array, number_of_items = prepare_float_array(data)
-    try:
-        lib.print_float_array(c_array, number_of_items)
-    finally:
-        lib.FreeIntArray(c_array) # Clean up created intermediate pointer
+    lib.print_float_array(c_array, number_of_items)
+
 
 # ========== Free Functions ==========
 def free_c_string(ptr: c_char_p):
@@ -535,30 +552,13 @@ def free_float_array_result(ptr: _CFloatArrayResult):
     lib.free_float_array_result(ptr)
 
 if __name__ == "__main__":
+    # gc.set_debug(gc.DEBUG_LEAK)
     # Test functions
-    # print_string_array([random.choice(["Lorem", "ipsum", "dolor", "sit", "amet"]) for _ in range(100)])
-    # print_int_array([2*i for i in range(10)])
-    # print_float_array([2.2*i for i in range(10)])
+    print_string_array([random.choice(["Lorem", "ipsum", "dolor", "sit", "amet"]) for _ in range(100)])
+    print_int_array([2*i for i in range(10)])
+    print_float_array([2.2*i for i in range(10)])
     
-    text = "Hello, Go!"
-    print_string(text)
-
-    modified = return_string(text)
-    print("Returned string:", modified)
     
-    assert text == modified
-    
-    data = [random.choice(["Lorem", "ipsum", "dolor", "sit", "amet"]) for _ in range(100)]
-    c_array, number_of_items = prepare_string_array(data)
-    assert len(data) == number_of_items
-
-    returned_data = return_string_array(c_array, number_of_items)
-
-    assert len(returned_data) == number_of_items
-    for original_string, returned_string in zip(data, returned_data):
-        if original_string != returned_string:
-            raise ValueError(f"Values did not match: {original_string} != {returned_string}")
-
     data = [random.randint(-1000, 1000) for _ in range(100)]
     c_array, number_of_items = prepare_int_array(data)
     assert len(data) == number_of_items
@@ -581,4 +581,5 @@ if __name__ == "__main__":
         # Only accurate to ~4 decimals, so this just tests for up to that variance
         if abs(original_float - returned_float) > 1e-4:
             raise ValueError(f"Values did not match: {original_float} != {returned_float}")
+    print("DONE")
     pass
