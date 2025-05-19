@@ -1,6 +1,6 @@
 # Python To Go Helper
 
-This is a library that contains python and go utilities for passing data between the two languages
+This is a library that contains python and go utilities for passing data between the two languages. Please note that while I've done my best due diligence I cannot guarentee there are no memory leaks in the current code. I've tested in a bunch of scenarios, but I would recommend being vigilant in any code that uses the library.
 
 ## Python
 
@@ -47,14 +47,16 @@ The python lib has the following API functions:
 To run the tests first install pytest:
 
 ```bash
-pip install pytest
+pip install pytest pytest-cov
 ```
 
 To run tests install pytest and run:
 
 ```bash
-pytest --ignore=__init__.py
+pytest --ignore=__init__.py --cov-report term-missing --cov=. test_lib.py
 ```
+
+This will run the test suite and let you know any coverage misses. There's ~%80 coverage currently due to some conditions not being possible (or I don't know how to make them happen)
 
 ## Go
 
@@ -146,3 +148,10 @@ The go lib has the following API functions:
 - `print_int_array(cArray *C.int, numberOfInts int){}`: Prints the go representation of an array, good for debugging rounding/conversion issues
 - `print_float_array(cArray *C.float, numberOfFloats int){}`: Prints the go representation of an array, good for debugging rounding/conversion issues
 
+### Tests
+
+To run the tests use: 
+
+```bash
+go test
+```
