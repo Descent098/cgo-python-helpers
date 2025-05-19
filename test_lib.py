@@ -1,33 +1,20 @@
-import sys
 import os
+import sys
+import random
 from platform import platform
-from ctypes import ArgumentError, Array, cdll, c_char_p, c_int, POINTER, c_float, Structure
+from ctypes import ArgumentError, cdll, c_char_p, c_int, POINTER, c_float
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+from lib import *
+from lib import _CStringArrayResult, _CIntArrayResult, _CFloatArrayResult
+
+import pytest
 
 # import dll library
 if platform().lower().startswith("windows"):
     lib = cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib.dll"))
 else:
     lib = cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib.so")) 
-
-# Redefine the C-compatible User struct in Python
-class _CStringArrayResult(Structure):
-    _fields_ = [
-        ("numberOfElements", c_int),
-        ("data", POINTER(c_char_p)),
-    ]
-    
-class _CIntArrayResult(Structure):
-    _fields_ = [
-        ("numberOfElements", c_int),
-        ("data", POINTER(c_int)),
-    ]
-
-class _CFloatArrayResult(Structure):
-    _fields_ = [
-        ("numberOfElements", c_int),
-        ("data", POINTER(c_float)),
-    ]
 
 # Setup CGo functions
 lib.print_string_array.argtypes =  [POINTER(c_char_p), c_int]
@@ -60,15 +47,6 @@ lib.free_int_array_result.argtypes = [POINTER(_CIntArrayResult)]
 lib.return_float_array.argtypes = [POINTER(c_float), c_int]
 lib.return_float_array.restype = POINTER(_CFloatArrayResult)
 lib.free_float_array_result.argtypes = [POINTER(_CFloatArrayResult)]
-
-# Create typehints
-CIntArray = Array[c_int]
-CFloatArray = Array[c_float]
-CStringArray = Array[c_char_p]
-
-
-import pytest
-from lib import *
 
 def cstring_checks(correct_content:str, data_to_test:c_char_p):
     """Checks that a c string is setup correctly"""

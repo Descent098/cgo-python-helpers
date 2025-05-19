@@ -1,52 +1,55 @@
-"""A package to help with building Go-python libraries
-
-Converting to ctypes
---------------------
-- prepare_string(data: str | bytes) -> c_char_p: Takes in a string and returns a C-compatible string
-- prepare_string_array(data:list[str|bytes]) -> tuple[Array[c_char_p], int]: Takes in a string list, and converts it to a C-compatible array
-- prepare_int_array(data:list[int]) -> tuple[Array[c_int], int]: Takes in a int list, and converts it to a C-compatible array
-- prepare_float_array(data:list[float]) -> tuple[Array[c_float], int]: Takes in a float list, and converts it to a C-compatible array
-
-Converting from ctypes
-----------------------
-- string_to_str(pointer: c_char_p) -> str: Takes in a pointer to a C string and returns a Python string
-- string_array_result_to_list(pointer:_CStringArrayResult) -> list[str]: 
-- int_array_result_to_list(pointer: _CIntArrayResult) -> list[int]: 
-- float_array_result_to_list(pointer: _CFloatArrayResult) -> list[float]: 
-
-Debugging Functions
--------------------
-- return_string(text: str | bytes) -> str: Debugging function that shows you the Go representation of a C string and returns the python string version
-- return_string_array(c_array:CStringArray, number_of_elements:int) ->list[str]: Debugging function that shows you the Go representation of a C array and returns the python list version (does not free)
-- return_int_array(c_array: CIntArray, number_of_elements: int) -> list[int]: Debugging function that shows you the Go representation of a C int array and returns a Python list
-- return_float_array(c_array: CFloatArray, number_of_elements: int) -> list[float]: Debugging function that shows you the Go representation of a C float array and returns a Python list
-- print_string(text: str | bytes): Prints a string's go representation, useful to look for encoding issues
-- print_string_array(data:list[str|bytes]): Prints a string array's go representation, useful to look for encoding issues
-- print_int_array(data:list[int]): Prints a int array's go representation, useful to look for rounding/conversion issues
-- print_float_array(data:list[float]): Prints a float array's go representation, useful to look for rounding/conversion issues
-
-Freeing Functions
------------------
-- free_c_string(ptr: c_char_p): Frees a single C string returned from Go (allocated via C.CString).
-- free_string_array(ptr: CStringArray, count: int): Frees an array of C strings returned from Go.
-- free_int_array(ptr: CIntArray): Frees a C int array returned from Go.
-- free_float_array(ptr: CFloatArray): Frees a C float array returned from Go.
-- free_string_array_result(ptr: _CStringArrayResult): Frees a StringArrayResult (including the array of strings and struct itself).
-- free_int_array_result(ptr: _CIntArrayResult): Frees an IntArrayResult (including the array and the struct itself).
-- free_float_array_result(ptr: _CFloatArrayResult): Frees a FloatArrayResult (including the array and the struct itself).
-"""
+"""A package to help with building Go-python libraries"""
 import os
-import random
+import subprocess
 from platform import platform
-from ctypes import Array, cdll, c_char_p, c_int, POINTER, c_float, Structure, string_at
+from ctypes import CDLL, Array, cdll, c_char_p, c_int, POINTER, c_float, Structure, string_at 
 
-# import library
-if platform().lower().startswith("windows"):
-    lib = cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib.dll"))
-else:
-    lib = cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib.so")) 
+# ========== Helper Functions  ============
+def get_library(dll_path:str,source_path:str="", compile:bool=False) -> CDLL:
+    """Get's the DLL specified, will compile if not found and flag is specified
 
-# Define the C-compatible User struct in Python
+    Parameters
+    ----------
+    dll_path : str
+        The path to the DLL file, if compile is specified this will be the output path
+
+    source_path:str, optional
+        The path to the source go file, only needed if compile is true, by default ""
+
+    compile : bool, optional
+        Specify if you should try to compile DLL if not in path, by default False
+
+    Raises
+    ------
+    ValueError:
+        If linked library is not available and/or compilable (if compile is specified)
+
+    Returns
+    -------
+    CDLL
+        The linked library
+    """
+    if not os.path.exists(dll_path):
+        if not compile:
+            raise ValueError(f"Linked Library is not available: {dll_path}")
+        if platform().lower().startswith("windows"):
+            additional_flags = "set GOTRACEBACK=system &&"
+        else:
+            additional_flags = "env GOTRACEBACK=system"
+        command = f"{additional_flags} go build -ldflags \"-s -w\" -buildmode=c-shared -o \"{dll_path}\" \"{source_path}\""
+        if compile:
+            print("\nRequired shared library is not available, building...")
+            try:
+                subprocess.run(command, shell=True, check=True)
+            except Exception as e:
+                if isinstance(e, FileNotFoundError):
+                    print("Unable to find Go install, please install it and try again\n")
+                else:
+                    print(f"Ran into error while trying to build shared library, make sure go, and a compatible compiler are installed, then try building manually using:\n\t{command}\nExiting with error:\n\t{e}")
+                raise ValueError(f"Linked Library is not available or compileable: {dll_path}")
+    return cdll.LoadLibrary(dll_path)
+
+# ========== C Structs ==========
 class _CStringArrayResult(Structure):
     _fields_ = [
         ("numberOfElements", c_int),
@@ -65,7 +68,17 @@ class _CFloatArrayResult(Structure):
         ("data", POINTER(c_float)),
     ]
 
-# Setup CGo functions
+# ========== Setup CGo functions ==========
+
+# import library
+dll_source_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib.go")
+if platform().lower().startswith("windows"):
+    dll_file = os.path.join(os.path.dirname(os.path.realpath(__file__)),"lib.dll")
+    lib = get_library(dll_file, dll_source_file, True)
+else:
+    dll_file = os.path.join(os.path.dirname(os.path.realpath(__file__)),"lib.so")
+    lib = get_library(dll_file, dll_source_file, True)
+
 lib.print_string_array.argtypes =  [POINTER(c_char_p), c_int]
 lib.FreeStringArray.argtypes = [POINTER(c_char_p), c_int]
 
@@ -82,8 +95,7 @@ lib.FreeCString.argtypes = [c_char_p]
 
 lib.print_string.argtypes = [c_char_p]
 
-## Array-based functions
-
+## ========== Array-based functions ==========
 
 lib.FreeStringArray.argtypes = [POINTER(c_char_p), c_int]
 lib.free_string_array_result.argtypes = [POINTER(_CStringArrayResult)]
@@ -98,7 +110,7 @@ lib.return_float_array.argtypes = [POINTER(c_float), c_int]
 lib.return_float_array.restype = POINTER(_CFloatArrayResult)
 lib.free_float_array_result.argtypes = [POINTER(_CFloatArrayResult)]
 
-# Create typehints
+# ========== Nice Typehints/Type Aliases ==========
 CIntArray = Array[c_int]
 CFloatArray = Array[c_float]
 CStringArray = Array[c_char_p]
@@ -366,7 +378,6 @@ def return_string(text: str | bytes) -> str:
     decoded = copied_bytes.decode(errors="replace")
 
     return decoded
-    
 
 def return_string_array(c_array:CStringArray, number_of_elements:int) ->list[str]:
     """Debugging function that shows you the Go representation of a C array and returns the python list version
@@ -410,7 +421,6 @@ def return_string_array(c_array:CStringArray, number_of_elements:int) ->list[str
     for i in range(result_data.numberOfElements):
         results.append(result_data.data[i].decode(errors='replace'))
     return results
-
 
 def return_int_array(c_array: CIntArray, number_of_elements: int) -> list[int]:
     """Debugging function that shows you the Go representation of a C int array and returns a Python list
@@ -488,7 +498,6 @@ def print_string_array(data:list[str|bytes]):
 
     lib.print_string_array(c_array, number_of_items)
 
-
 def print_int_array(data:list[int]):
     """Prints a int array's go representation, useful to look for rounding/conversion issues
 
@@ -505,7 +514,6 @@ def print_int_array(data:list[int]):
 
     lib.print_int_array(c_array, number_of_items)
 
-
 def print_float_array(data:list[float]):
     """Prints a float array's go representation, useful to look for rounding/conversion issues
 
@@ -520,7 +528,6 @@ def print_float_array(data:list[float]):
     """
     c_array, number_of_items = prepare_float_array(data)
     lib.print_float_array(c_array, number_of_items)
-
 
 # ========== Free Functions ==========
 def free_c_string(ptr: c_char_p):
@@ -550,4 +557,3 @@ def free_int_array_result(ptr: _CIntArrayResult):
 def free_float_array_result(ptr: _CFloatArrayResult):
     """Frees a FloatArrayResult (including the array and the struct itself)."""
     lib.free_float_array_result(ptr)
-
