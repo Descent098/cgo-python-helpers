@@ -28,6 +28,22 @@ def get_library(dll_path:str,source_path:str="", compile:bool=False) -> CDLL:
     -------
     CDLL
         The linked library
+        
+    Examples
+    --------
+    Build similarity.dll/similarity.so from lib.go
+    ```
+    from platform import platform
+    # import library
+    if platform().lower().startswith("windows"):
+        library_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "similarity.dll")
+    else:
+        library_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "similarity.so")
+
+    source_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib.go")
+    
+    lib = get_library(library_location, source_location, compile=True)
+    ```
     """
     if not os.path.exists(dll_path):
         if not compile:
@@ -36,11 +52,11 @@ def get_library(dll_path:str,source_path:str="", compile:bool=False) -> CDLL:
             additional_flags = "set GOTRACEBACK=system &&"
         else:
             additional_flags = "env GOTRACEBACK=system"
-        command = f"{additional_flags} go build -ldflags \"-s -w\" -buildmode=c-shared -o \"{dll_path}\" \"{source_path}\""
+        command = f"{additional_flags} go build -ldflags \"-s -w\" -buildmode=c-shared -o \"{dll_path}\""
         if compile:
             print("\nRequired shared library is not available, building...")
             try:
-                subprocess.run(command, shell=True, check=True)
+                subprocess.run(command, shell=True, check=True, cwd=os.path.dirname(source_path))
             except Exception as e:
                 if isinstance(e, FileNotFoundError):
                     print("Unable to find Go install, please install it and try again\n")
