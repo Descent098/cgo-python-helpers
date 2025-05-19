@@ -551,35 +551,3 @@ def free_float_array_result(ptr: _CFloatArrayResult):
     """Frees a FloatArrayResult (including the array and the struct itself)."""
     lib.free_float_array_result(ptr)
 
-if __name__ == "__main__":
-    # gc.set_debug(gc.DEBUG_LEAK)
-    # Test functions
-    print_string_array([random.choice(["Lorem", "ipsum", "dolor", "sit", "amet"]) for _ in range(100)])
-    print_int_array([2*i for i in range(10)])
-    print_float_array([2.2*i for i in range(10)])
-    
-    
-    data = [random.randint(-1000, 1000) for _ in range(100)]
-    c_array, number_of_items = prepare_int_array(data)
-    assert len(data) == number_of_items
-
-    returned_data = return_int_array(c_array, number_of_items)
-
-    assert len(returned_data) == number_of_items
-    for original_int, returned_int in zip(data, returned_data):
-        if original_int != returned_int:
-            raise ValueError(f"Values did not match: {original_int} != {returned_int}")
-
-    data = [random.uniform(-1000.0, 1000.0) for _ in range(100)]
-    c_array, number_of_items = prepare_float_array(data)
-    assert len(data) == number_of_items
-
-    returned_data = return_float_array(c_array, number_of_items)
-
-    assert len(returned_data) == number_of_items
-    for original_float, returned_float in zip(data, returned_data):
-        # Only accurate to ~4 decimals, so this just tests for up to that variance
-        if abs(original_float - returned_float) > 1e-4:
-            raise ValueError(f"Values did not match: {original_float} != {returned_float}")
-    print("DONE")
-    pass
