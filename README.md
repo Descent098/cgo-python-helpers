@@ -4,6 +4,39 @@ This is a library that contains python and go utilities for passing data between
 
 ## Python
 
+### Setup
+
+To use the python integration download this repo, then extract the folder into your project, and rename it from `📂cgo-python-helpers-main/` to `📂helper/` (or download `helper.zip` from [the releases](https://github.com/Descent098/cgo-python-helpers/releases)). From there you can drag it into your project. So for example if your project is called `📂scraper/` then your setup should look like this:
+
+```
+📂scraper/
+├─ 📂helper
+├─ 📄__init__.puy
+└──📄main.py
+```
+
+You can then use the library by doing something like:
+
+```python
+from ctypes import cdll
+from .helper import prepare_string_array
+
+
+lib = cdll.LoadLibrary("path/to/library.dll") # Load your Go Library
+
+# Function that takes in string array, and number of items, then prints them in C
+lib.print_string_array.argtypes =  [POINTER(c_char_p), c_int]
+
+# Prep data using function
+data = ["Hello", "World", "!"]
+c_array, number_of_items = prepare_string_array(data)
+
+# Use data in Go
+lib.print_string_array(c_array, number_of_items)
+```
+
+### API
+
 The python lib has the following API functions:
 
 **Converting to ctypes**
