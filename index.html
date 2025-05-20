@@ -36,17 +36,30 @@
             <p>Fill out the form below with a list of the structs that you want, and a package will be built to bring the data back and forth between the environments.</p>
             <p>If you just want to use basic types (strings, ints, floats, or arrays of any of these) then I would recommend looking at <a href="http://github.com/descen098/cgo-python-helpers" target="_blank" rel="noopener noreferrer">the library</a> I wrote instead</p>
         </article>
-        <article action="text-center">
+        <article>
             <h2>Build Structs</h2>
+            <p>This section will allow you to define the structs that will allow you to exchange structured data between python and go</p>
                 <div id="structs">
                     
                 </div>
                 <button id="add-struct-button">+ Add Struct</button>
-<button id="export-button">Export</button>
+                
+            </article>
+            <article>
+                <h2>Build Functions</h2>
+                <p>This section will allow you to define additional functions that will be linked between the libraries</p>
+                <div id="functions">
+
+                </div>
+                <button id="add-func-button">+ Add Function</button>
+                
         </article>
+        <button id="export-button">Export</button>
     </main>
   </body>
 
+  <script src="./js/nunjucks.min.js"></script>
+  <script src="./js/utilities.js" type="module"></script>
   <script src="./js/structs.js" type="module"></script>
   <script src="./js/main.js" type="module"></script>
 </html>

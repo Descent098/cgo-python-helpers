@@ -1,4 +1,5 @@
-import { Struct, Attribute, AttributeTypes, validCharacters, currentStructs } from './structs.js';
+import {Attribute, AttributeTypes, sanitizeName, validCharacters} from './utilities.js';
+import { Struct, currentStructs } from './structs.js';
 
 function addStruct(){
     // Create struct data
@@ -46,7 +47,9 @@ function addStruct(){
 
     for (const [id, _] of currentStructs.entries()){
         let attributesContainer = document.getElementById(`struct-attributes-${id}`)
+        let nameContainer = document.getElementById(`struct-name-input-${id}`)
         attributesContainer.onchange = () => {updateStructAttributes(attributesContainer,id)}
+        nameContainer.oninput = ()=>{updateStructName(id)}
     }
 
     // Attach remove event listener for each struct
@@ -69,24 +72,57 @@ function removeStruct(structID){
     if (element) element.remove();
 }
 
-function updateStructName(structID, value){
+function updateStructName(structID){
+    let value = document.getElementById(`struct-name-input-${structID}`).value
     const struct = currentStructs.get(structID);
-    let name = "";
-    for (const char of value){
-        name += (validCharacters.includes(char) ? char : (char === " " ? "_" : ""));
-    }
+    let name = sanitizeName(value);
     struct.name = name;
 
     document.getElementById(`struct-name-input-${structID}`).value = name;
     document.getElementById(`struct-name-${structID}`).textContent = name;
+    currentStructs.forEach(
+        (currentStruct, key, map) =>{
+            if (currentStruct.name.length <1){
+                document.getElementById("export-button").disabled = true
+            } else{
+                document.getElementById("export-button").disabled = false
+            }
+        }
+    )
+    
 }
 
-function exportData(){
-    console.log("Exporting structs:", [...currentStructs.values()]);
+function exportData() {
+    const data = [...currentStructs.values()].map(struct => {
+        return {
+            name: struct.name,
+            attributes: struct.attributes.map(attr => {
+                let type = typeof attr.type === 'string' ? attr.type : 
+                           attr.type instanceof ArrayType ? `[]${attr.type.type}` : 
+                           attr.type.name ?? 'unknown';
+                return { name: attr.name, type: type };
+            })
+        };
+    });
+
+    const goOutput = nunjucks.renderString(goTemplate, { structs: data });
+    console.log("go", goOutput);
+    
+    const pythonOutput = nunjucks.renderString(pyTemplate, { structs: data });
+    console.log("python", pythonOutput);
+    
 }
 
 
-
+function exportFile(data){
+    const blob = new Blob([data], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'structs.go';
+    a.click();
+    URL.revokeObjectURL(url);
+}
 
 
 function checkNameIsUnique(name){
@@ -179,6 +215,27 @@ document.addEventListener('DOMContentLoaded', () => {
     exportButton.addEventListener('click', exportData);
 
 });
+
+
+const goTemplate = `
+{% for struct in structs %}
+type {{ struct.name }} struct {
+{% for attr in struct.attributes %}
+    {{ attr.name }} {{ attr.type }}
+{% endfor %}
+}
+{% endfor %}
+    `;
+
+const pyTemplate=`
+{% for struct in structs %}
+class {{ struct.name }}:
+    {% for attr in struct.attributes %}
+    {{ attr.name }}:{{ attr.type }}
+    {% endfor %}
+
+{% endfor %}
+`
 
 
 // function addStruct(){
