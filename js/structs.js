@@ -1,4 +1,5 @@
 import {sanitizeName} from './utilities.js';
+import {goStructTemplate, pyClassTemplate, env} from './templates.js';
 
 export class Struct {
     /**
@@ -11,6 +12,14 @@ export class Struct {
         this.structID = structID;
         this.name = sanitizeName(name);
         this.attributes = attributes;
+    }
+
+    getPythonClass(){
+        return env.renderString(pyClassTemplate, { class: this })
+    }
+
+    getGoStruct(){
+        return env.renderString(goStructTemplate, { struct: this })
     }
 }
 

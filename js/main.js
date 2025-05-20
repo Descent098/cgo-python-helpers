@@ -1,6 +1,16 @@
-import {Attribute, AttributeTypes, sanitizeName, validCharacters} from './utilities.js';
-import { Struct, currentStructs } from './structs.js';
+import {Attribute, AttributeTypes, sanitizeName, checkNameIsUniqueInMap} from './utilities.js';
+import {Struct, currentStructs} from './structs.js';
+import {goTemplate, pyTemplate, env} from "./templates.js";
 
+
+
+// ============== Struct UI functions ================ \\
+
+/**
+ * Allows you to add a struct to the UI and global currentStructs
+ *
+ * @returns {Struct} the struct instance created 
+ */
 function addStruct(){
     // Create struct data
     const structElement = document.getElementById("structs");
@@ -57,8 +67,6 @@ function addStruct(){
         btn.onclick = () => removeStruct(btn.dataset.id);
     });
 
-    
-
     return structInstance;
 }
 
@@ -72,17 +80,23 @@ function removeStruct(structID){
     if (element) element.remove();
 }
 
+/**
+ * Takes in a struct ID and updates it's values based on the UI state
+ *
+ * @param {string} structID 
+ */
 function updateStructName(structID){
     let value = document.getElementById(`struct-name-input-${structID}`).value
     const struct = currentStructs.get(structID);
     let name = sanitizeName(value);
+    let isUnique = checkNameIsUniqueInMap(name, currentStructs)
     struct.name = name;
 
     document.getElementById(`struct-name-input-${structID}`).value = name;
     document.getElementById(`struct-name-${structID}`).textContent = name;
     currentStructs.forEach(
         (currentStruct, key, map) =>{
-            if (currentStruct.name.length <1){
+            if (currentStruct.name.length <1 || !isUnique){
                 document.getElementById("export-button").disabled = true
             } else{
                 document.getElementById("export-button").disabled = false
@@ -91,51 +105,6 @@ function updateStructName(structID){
     )
     
 }
-
-function exportData() {
-    const data = [...currentStructs.values()].map(struct => {
-        return {
-            name: struct.name,
-            attributes: struct.attributes.map(attr => {
-                let type = typeof attr.type === 'string' ? attr.type : 
-                           attr.type instanceof ArrayType ? `[]${attr.type.type}` : 
-                           attr.type.name ?? 'unknown';
-                return { name: attr.name, type: type };
-            })
-        };
-    });
-
-    const goOutput = nunjucks.renderString(goTemplate, { structs: data });
-    console.log("go", goOutput);
-    
-    const pythonOutput = nunjucks.renderString(pyTemplate, { structs: data });
-    console.log("python", pythonOutput);
-    
-}
-
-
-function exportFile(data){
-    const blob = new Blob([data], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'structs.go';
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-
-function checkNameIsUnique(name){
-    for (const id of currentStructs.keys()){
-        currentName = currentStructs.get(id).name
-        if (name === currentName){
-            return false
-        }
-    }
-    return true
-}
-
-
 
 /**
  * Updates the struct attributes of specified struct
@@ -199,7 +168,30 @@ function updateStructAttributes(fieldSetElement, structID){
     fieldSetElement.innerHTML = newHTML
 }
 
-// Initialize DOM
+// ============== Data export functions ================ \\
+
+function exportData() {
+    const structs = [...currentStructs.values()];
+
+    const goOutput = env.renderString(goTemplate, { structs: structs });
+    console.log("go", goOutput);
+    
+    const pythonOutput = env.renderString(pyTemplate, { classes: structs });
+    console.log("python", pythonOutput);
+    
+}
+
+function exportFile(data){
+    const blob = new Blob([data], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'structs.go';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ============== Initialize Listeners ================ \\
 document.addEventListener('DOMContentLoaded', () => {
     const addButton = document.getElementById('add-struct-button');
     const exportButton = document.getElementById('export-button');
@@ -217,115 +209,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-const goTemplate = `
-{% for struct in structs %}
-type {{ struct.name }} struct {
-{% for attr in struct.attributes %}
-    {{ attr.name }} {{ attr.type }}
-{% endfor %}
-}
-{% endfor %}
-    `;
-
-const pyTemplate=`
-{% for struct in structs %}
-class {{ struct.name }}:
-    {% for attr in struct.attributes %}
-    {{ attr.name }}:{{ attr.type }}
-    {% endfor %}
-
-{% endfor %}
-`
-
-
-// function addStruct(){
-//     // Create struct
-//     let structElement = document.getElementById("structs")
-//     let structID = crypto.randomUUID()
-//     let structInstance = new Struct(structID, "MyStruct", [new Attribute("myValue", AttributeTypes.str)])
-    
-//     window.currentStructs.set(structID, structInstance) // Add to struct instance list
-
-//     // Create new HTML
-//     let newHTML = ""
-//     for (const id of window.currentStructs.keys()){
-//         let structInstance = window.currentStructs.get(id)
-//         let structLabel = ""
-
-//         if (structInstance.name !== "MyStruct"){
-//             structLabel = structInstance.name
-//         } else{
-//             structLabel = `Struct (${structInstance.structID})`
-//         }
-
-        
-//         newHTML += `
-//         <article id="struct-${structID}">
-//             <div class="struct-bar">
-//                 <div><h4 id="struct-name-${structID}">${structLabel}</h4></div>
-//                 <div><button onclick="removeStruct('${structID}')" style="background:transparent;border-color:transparent;">❌</button></div>
-//             </div>
-//                 <form id="struct-data-${structID}" action="">
-//                     <input id="struct-name-input-${structID}" value="${structInstance.name}" type="text" name="name" aria-describedby="structName-Helper" placeholder="Struct Name" required oninput="updateStructName('${structID}', this.value)">
-//                     <small id="structName-Helper">
-//                       If your struct doesn't start with a capital, Go will consider it to be private
-//                     </small>
-//                     <article>
-//                         <details><summary>Attributes</summary> <!-- Update when name is updated-->
-//                             <fieldset id="struct-attributes-${structID}" onchange="updateStructAttributes(this, '${structID}')">
-//                                 <input type="text" name="name" placeholder="Atribute Name">
-//                                 <select name="type" required>
-//                                     <option selected disabled value="">
-//                                         Select Attribute Type
-//                                     </option>
-//                                     <option value="string">String</option>
-//                                     <option value="int">Int</option>
-//                                     <option value="float">Float</option>
-//                                     <option value="array">Array</option>
-//                                 </select>
-//                                 <!-- Only appears if type is Array-->
-//                                 <select name="subtype" required>
-//                                     <option selected disabled value="">
-//                                         Select Array Type
-//                                     </option>
-//                                     <option>String</option>
-//                                     <option>Int</option>
-//                                     <option>Float</option>
-//                                 </select>
-//                             </fieldset>
-//                         </details>
-//                     </article>
-//                 </form>
-//         </article>
-//     `
-//     }
-
-//     // Replace existing HTML with new HTML
-//     structElement.innerHTML = newHTML
-    
-//     return structInstance
-// }
-
-// function exportData(){
-
-// }
-
-
-
-
-
-// function updateStructName(structID, value){
-//     let structInstance = window.currentStructs.get(structID)
-//     let preprocessedName = ""
-//     for (const character of value){
-//         if (validCharacters.includes(character)){
-//             preprocessedName += character
-//         } else if (character == " "){
-//             preprocessedName += "_"
-//         }
-//     }
-//     structInstance.name = preprocessedName
-//     document.getElementById(`struct-name-input-${structID}`).value = preprocessedName
-//     document.getElementById(`struct-name-${structID}`).innerHTML = preprocessedName
-// }
 

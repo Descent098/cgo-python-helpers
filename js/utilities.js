@@ -115,7 +115,6 @@ export const validCharacters = [
     'x', 'y', 'z'
 ];
 
-
 /**
  * Sanitizes input to make sure it's class name/function name/variable name friendly
  *
@@ -141,4 +140,21 @@ export function sanitizeName(input){
     }
 
     return result ?? ""
+}
+
+/**
+ * Check that a name is unique in map, used to make sure structs/function names are unique
+ *
+ * @param {string} name The name that you want to check
+ * @param {Map<string, Object>} map The Map to check inside
+ * @returns {boolean} True if it's unique, False otherwise
+ */
+export function checkNameIsUniqueInMap(name, map){
+    for (const id of map.keys()){
+        let currentName = map.get(id).name
+        if (name === currentName){
+            return false
+        }
+    }
+    return true
 }
